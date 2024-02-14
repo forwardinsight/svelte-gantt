@@ -51,7 +51,7 @@ export class RowFactory {
         return {
             model: row,
             y,
-            height,
+            height
         };
     }
 
@@ -96,7 +96,7 @@ export class RowFactory {
                     ctx,
                     row,
                     level + 1,
-                    parents,
+                    parents
                 );
                 row.children = nextLevel.rows;
                 row.allChildren = nextLevel.allRows;

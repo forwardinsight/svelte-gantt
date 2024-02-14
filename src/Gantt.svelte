@@ -645,13 +645,15 @@
     }
 
     export function updateRow(model) {
-        const row = rowFactory.createRow(model, null);
+        const row = rowFactory.createRow(model, 0);
         rowStore.upsert(row);
+        taskFactory.rowEntities = $rowStore.entities;
     }
 
     export function updateRows(rowModels) {
-        const rows = rowModels.map(model => rowFactory.createRow(model, null));
+        const rows = rowModels.map((model, index) => rowFactory.createRow(model, index));
         rowStore.upsertAll(rows);
+        taskFactory.rowEntities = $rowStore.entities;
     }
 
     export function getRow(resourceId) {
@@ -671,7 +673,7 @@
 
     let filteredRows = [];
     $: filteredRows = $allRows.filter(row => !row.hidden);
-    
+
     let rightScrollbarVisible: boolean;
     $: rightScrollbarVisible = rowContainerHeight > $visibleHeight;
 
@@ -710,7 +712,7 @@
                 }
             }
         }
-        
+
         // render all tasks being dragged if not already
         for (const id in $draggingTaskCache) {
             if (!rendered[id]) {
@@ -719,6 +721,7 @@
             }
         }
 
+        tasks.sort((a, b) => a.model.id - b.model.id);
         visibleTasks = tasks;
     }
 
@@ -729,17 +732,20 @@
                 const taskIds = $rowTaskCache[rowId];
                 if (taskIds) {
                     const tasks = taskIds.map(taskId => $taskStore.entities[taskId]);
-                    packLayout.layout(tasks, { 
+                    packLayout.layout(tasks, {
                         rowContentHeight: rowHeight - rowPadding * 2
                     });
                 }
             }
         }
     }
+
+    let nextIndex = 0;
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-mouse-events-have-key-events -->
+<!-- svelte-ignore a11y-no-static-element-interactions -->
 <div
     class="sg-gantt {classes}"
     class:sg-disable-transition={disableTransition}
@@ -766,7 +772,12 @@
     {/each}
 
     <div class="sg-timeline sg-view">
-        <div class="sg-header" bind:this={mainHeaderContainer} bind:clientHeight={$headerHeight} class:right-scrollbar-visible="{rightScrollbarVisible}">
+        <div
+            class="sg-header"
+            bind:this={mainHeaderContainer}
+            bind:clientHeight={$headerHeight}
+            class:right-scrollbar-visible={rightScrollbarVisible}
+        >
             <div class="sg-header-scroller" use:horizontalScrollListener>
                 <div class="header-container" style="width:{$_width}px">
                     <ColumnHeader
@@ -811,15 +822,34 @@
                         <TimeRange {...timeRange} />
                     {/each}
 
-                    {#each visibleTasks as task (task.model.id)}
-                        <Task
-                            model={task.model}
-                            left={task.left}
-                            width={task.width}
-                            height={task.height}
-                            top={task.top}
-                            {...task}
-                        />
+                    {#each visibleTasks as task, index (task.model.id)}
+                        {#if task.model.syncNextIndex > 0}
+                            <div class="tasks-container">
+                                {#each visibleTasks as _task, _index (_task.model.id)}
+                                    {#if _index >= index && _index <= task.model.syncNextIndex + index}
+                                        <Task
+                                            bind:nextIndex
+                                            model={_task.model}
+                                            left={_task.left}
+                                            width={_task.width}
+                                            height={_task.height}
+                                            top={_task.top}
+                                            {..._task}
+                                        />
+                                    {/if}
+                                {/each}
+                            </div>
+                        {:else if index > nextIndex}
+                            <Task
+                                bind:nextIndex
+                                model={task.model}
+                                left={task.left}
+                                width={task.width}
+                                height={task.height}
+                                top={task.top}
+                                {...task}
+                            />
+                        {/if}
                     {/each}
                 </div>
                 {#each ganttBodyModules as module}
@@ -851,10 +881,10 @@
     }
 
     /* This class should take into account varying widths of the scroll bar */
-    :global(.right-scrollbar-visible) { 
+    :global(.right-scrollbar-visible) {
         /* set this value to your scrollbar width */
         padding-right: 17px;
-    } 
+    }
 
     .sg-timeline {
         flex: 1 1 0%;
@@ -880,7 +910,6 @@
         width: 100%;
         height: 100%;
         z-index: 1;
-        pointer-events: none;
     }
 
     .sg-rows {
@@ -906,5 +935,9 @@
 
     :global(*) {
         box-sizing: border-box;
+    }
+
+    :global(.tasks-container:hover div) {
+        background-color: #f0f0f0;
     }
 </style>

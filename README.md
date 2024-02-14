@@ -15,7 +15,7 @@ DEMO: [Large dataset](https://anovokmet.github.io/svelte-gantt/),
 # Installation
 
 ```
-npm install svelte-gantt
+npm install @forwardinsight/svelte-gantt
 ```
 
 Use ES6 imports in your code:

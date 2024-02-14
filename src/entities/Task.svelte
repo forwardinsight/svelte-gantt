@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { getContext } from 'svelte';
+    import { getContext, onMount } from 'svelte';
     import { TaskModel, reflectTask } from '../core/task';
     import { normalizeClassAttr, setCursor, throttle } from '../utils/dom';
     import type { GanttContext, GanttContextOptions, GanttContextServices } from '../gantt';
@@ -12,6 +12,11 @@
     export let topDelta: number = 0;
     export let width: number;
     export let reflected = false;
+    export let nextIndex = 0;
+
+    onMount(() => {
+        nextIndex = nextIndex + 1;
+    });
 
     let animating = true;
     let _dragging = false;
@@ -95,7 +100,7 @@
                 id: model.id,
                 resourceId: model.resourceId,
                 from: model.from,
-                to: model.to,
+                to: model.to
             };
 
             //row switching
@@ -273,7 +278,10 @@
 
     let resizeEnabled: boolean;
     $: {
-        resizeEnabled = model.type !== 'milestone' && $rowStore.entities[model.resourceId].model.enableDragging && model.enableDragging;
+        resizeEnabled =
+            model.type !== 'milestone' &&
+            $rowStore.entities[model.resourceId].model.enableDragging &&
+            model.enableDragging;
     }
 </script>
 
@@ -308,7 +316,12 @@
         <!-- <span class="debug">x:{_position.x} y:{_position.y}, x:{left} y:{top}</span> -->
         {#if model.showButton}
             <!-- svelte-ignore a11y-click-events-have-key-events -->
-            <span class="sg-task-button {model.buttonClasses}" on:click={onClick} role="button" tabindex="0">
+            <span
+                class="sg-task-button {model.buttonClasses}"
+                on:click={onClick}
+                role="button"
+                tabindex="0"
+            >
                 {@html model.buttonHtml}
             </span>
         {/if}
@@ -341,7 +354,7 @@
 
         white-space: nowrap;
         /* overflow: hidden; */
-        
+
         transition:
             background-color 0.2s,
             opacity 0.2s;
@@ -369,19 +382,21 @@
 
     .sg-task:not(.moving) {
         transition:
-            left 0.2s, top 0.2s,
+            left 0.2s,
+            top 0.2s,
             transform 0.2s,
             background-color 0.2s,
-            width 0.2s, 
+            width 0.2s,
             height 0.2s;
     }
 
     .sg-task--sticky:not(.moving) {
         transition:
-            left 0.2s, top 0.2s,
+            left 0.2s,
+            top 0.2s,
             transform 0.2s,
             background-color 0.2s,
-            width 0.2s, 
+            width 0.2s,
             height 0.2s;
     }
 
@@ -432,19 +447,6 @@
 
     .sg-task-background {
         background: rgba(0, 0, 0, 0.2);
-    }
-
-    :global(.sg-task) {
-        color: white;
-        background: rgb(116, 191, 255);
-    }
-
-    :global(.sg-task:hover) {
-        background: rgb(98, 161, 216);
-    }
-
-    :global(.sg-task.selected) {
-        background: rgb(69, 112, 150);
     }
 
     .sg-milestone {

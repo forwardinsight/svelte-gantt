@@ -18,6 +18,7 @@ export interface TaskModel {
     labelBottom?: string;
     type?: 'milestone' | 'task';
     stickyLabel?: boolean;
+    syncNextIndex?: number;
 }
 
 export interface SvelteTask {
@@ -29,12 +30,13 @@ export interface SvelteTask {
 
     height: number;
     reflections?: string[];
-    
+
     /* pack layout fields */
     intersectsWith?: SvelteTask[];
     numYSlots?: number;
     yPos?: number;
     topDelta?: number;
+    syncNextIndex?: number; // index of amount of next tasks to sync with
 }
 
 export class TaskFactory {
@@ -70,6 +72,7 @@ export class TaskFactory {
         model.buttonHtml = model.buttonHtml || '';
         // enable dragging of task
         model.enableDragging = model.enableDragging === undefined ? true : model.enableDragging;
+        model.syncNextIndex = model.syncNextIndex || 0;
 
         const left = this.columnService.getPositionByDate(model.from) | 0;
         const right = this.columnService.getPositionByDate(model.to) | 0;
