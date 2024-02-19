@@ -22,12 +22,38 @@ export class SelectionManager {
 
     constructor(private taskStore: EntityStore<SvelteTask>) {}
 
-    selectSingle(taskId, node) {
+    selectSingle(taskId, node): number {
         if (!this.currentSelection.has(taskId)) {
-            this.unSelectTasks();
             this.toggleSelection(taskId, node);
+            this.selectedTasks.update(selections => ({
+                ...selections,
+                [taskId]: true
+            }));
+
+            return this.currentSelection.keys.length;
+        } else {
+            this.unSelectTasks();
+            return -1;
         }
-        this.selectedTasks.set({ [taskId]: true });
+    }
+
+    selectMultiple(taskIds, nodes) {
+        if (!this.currentSelection.has(taskIds[0])) {
+            const newSelections = taskIds.reduce((selections, taskId) => {
+                selections[taskId] = true;
+                return selections;
+            }, {});
+            this.toggleSelection(taskIds[0], nodes[0]);
+            this.selectedTasks.update(selections => ({
+                ...selections,
+                ...newSelections
+            }));
+
+            return this.currentSelection.keys.length;
+        } else {
+            this.unSelectTasks();
+            return -1;
+        }
     }
 
     toggleSelection(taskId, node) {

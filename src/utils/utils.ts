@@ -1,3 +1,4 @@
+import { SelectionManager } from 'src/core/selectionManager';
 import { SvelteGanttDateAdapter } from './date';
 
 export class GanttUtils {
@@ -9,7 +10,8 @@ export class GanttUtils {
     magnetDuration: number;
 
     dateAdapter: SvelteGanttDateAdapter;
-
+    onSelectTasks: (taskContainerId) => void;
+    selectionManager: SelectionManager;
     /** because gantt width is not always correct */
     /**BlueFox 09.01.23: couldn't reproduce the above so I removed the code
     //totalColumnDuration: number;

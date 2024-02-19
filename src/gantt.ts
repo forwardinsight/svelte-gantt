@@ -182,4 +182,5 @@ export interface SvelteGanttComponent extends Component<SvelteGanttOptions> {
     getTask(id): SvelteTask;
     getTasks(resourceId): SvelteTask[];
     getRow(id): SvelteRow;
+    rendorTasks();
 }

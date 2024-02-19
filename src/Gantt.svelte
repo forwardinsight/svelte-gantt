@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { onMount, setContext, tick, onDestroy } from 'svelte';
-    import { writable, derived } from 'svelte/store';
+    import { onDestroy, onMount, setContext, tick } from 'svelte';
+    import { derived, writable } from 'svelte/store';
 
     let ganttElement: HTMLElement;
     let mainHeaderContainer: HTMLElement;
@@ -9,27 +9,27 @@
     let scrollables = [];
     let mounted = false;
 
+    import { ColumnHeader, Columns } from './column';
     import { createDataStore } from './core/store';
-    import { Task, Row, TimeRange, TimeRangeHeader } from './entities';
-    import { Columns, ColumnHeader } from './column';
+    import { Row, Task, TimeRange, TimeRangeHeader } from './entities';
     import { Resizer } from './ui';
 
-    import { GanttUtils, getPositionByDate } from './utils/utils';
-    import { getRelativePos, isLeftClick } from './utils/dom';
     import { GanttApi } from './core/api';
-    import { TaskFactory, reflectTask } from './core/task';
-    import type { SvelteTask } from './core/task';
-    import { RowFactory } from './core/row';
-    import { TimeRangeFactory } from './core/timeRange';
-    import { DragDropManager } from './core/drag';
-    import { SelectionManager } from './core/selectionManager';
-    import { findByPosition, findByDate } from './core/column';
     import type { HighlightedDurations, Column as IColumn } from './core/column';
+    import { findByDate, findByPosition } from './core/column';
+    import { DragDropManager } from './core/drag';
     import { createDelegatedEventDispatcher } from './core/events';
-    import { getDuration, getAllPeriods } from './utils/date';
-    import { DefaultSvelteGanttDateAdapter } from './utils/defaultDateAdapter';
-    import type { SvelteGanttDateAdapter } from './utils/date';
     import * as packLayout from './core/pack-layout';
+    import { RowFactory } from './core/row';
+    import { SelectionManager } from './core/selectionManager';
+    import type { SvelteTask } from './core/task';
+    import { TaskFactory, reflectTask } from './core/task';
+    import { TimeRangeFactory } from './core/timeRange';
+    import type { SvelteGanttDateAdapter } from './utils/date';
+    import { getAllPeriods, getDuration } from './utils/date';
+    import { DefaultSvelteGanttDateAdapter } from './utils/defaultDateAdapter';
+    import { getRelativePos, isLeftClick } from './utils/dom';
+    import { GanttUtils, getPositionByDate } from './utils/utils';
 
     function assertSet(values) {
         for (const name in values) {
@@ -68,6 +68,7 @@
     $: $_to = toDateNum(to);
 
     export let minWidth = 800;
+    export let maxWidth = 0;
     export let fitWidth = false;
     const _minWidth = writable(minWidth);
     const _fitWidth = writable(fitWidth);
@@ -149,7 +150,7 @@
     const visibleHeight = writable<number>(null);
     const headerHeight = writable<number>(null);
     const _width = derived([visibleWidth, _minWidth, _fitWidth], ([visible, min, stretch]) => {
-        return stretch && visible > min ? visible : min;
+        return maxWidth > 0 ? maxWidth : stretch && visible > min ? visible : min;
     });
 
     const dataStore = createDataStore();
@@ -241,6 +242,7 @@
             offset,
             highlightedDurations
         );
+        console.log('offset', offset);
         let left = 0;
         let distance_point = 0;
         periods.forEach(function (period) {
@@ -311,19 +313,61 @@
         mounted = true;
     });
 
+    const transformTaks = () => {
+        if (!visibleTasks || visibleTasks.length === 0) return;
+
+        let tasks = [];
+        console.log('visibleTasks', visibleTasks);
+        for (let i = 0; i < visibleTasks.length; i++) {
+            const task = visibleTasks[i];
+            let subTasks = [];
+            if (task.model.syncNextIndex > 0) {
+                console.log(
+                    'task.model.syncNextIndex > 0: task.model.syncNextIndex',
+                    task.model.syncNextIndex,
+                    `i: ${i}`
+                );
+                for (let j = i; j <= i + task.model.syncNextIndex; j++) {
+                    console.log(
+                        'task.model.syncNextIndex',
+                        task.model.syncNextIndex,
+                        `i: ${i}, j: ${j}`
+                    );
+                    subTasks.push(visibleTasks[j]);
+                }
+                i += task.model.syncNextIndex;
+                console.log('i+= task.syncNextIndex', i);
+            } else {
+                console.log('else: task.model.syncNextIndex', task.model.syncNextIndex, `i: ${i}`);
+                subTasks.push(task);
+            }
+
+            tasks.unshift(subTasks);
+        }
+        console.log('transformTaks', tasks);
+
+        displayTasks = tasks;
+    };
+
     const { onDelegatedEvent, offDelegatedEvent, onEvent } = createDelegatedEventDispatcher();
 
     onDelegatedEvent('mousedown', 'data-task-id', (event, data, target) => {
         const taskId = data;
-        if (isLeftClick(event) && !target.classList.contains('sg-task-reflected')) {
-            if (event.ctrlKey) {
-                selectionManager.toggleSelection(taskId, target);
-            } else {
-                selectionManager.selectSingle(taskId, target);
-            }
-            selectionManager.dispatchSelectionEvent(taskId, event);
-        }
-        api['tasks'].raise.select($taskStore.entities[taskId]);
+        // if (isLeftClick(event) && !target.classList.contains('sg-task-reflected')) {
+        //     if (event.ctrlKey) {
+        //         selectionManager.toggleSelection(taskId, target);
+        //     } else {
+        //         selectionManager.selectSingle(taskId, target);
+        //     }
+        //     selectionManager.dispatchSelectionEvent(taskId, event);
+        // }
+        // TBD: adding the for multiple selection
+
+        const div = ganttElement.querySelector(
+            `[data-task-id="${$taskStore.entities[taskId].model.id}"]`
+        );
+        const parentId = div.parentNode.id;
+        api['tasks'].raise.select(parentId);
     });
 
     onDelegatedEvent('mouseover', 'data-row-id', (event, data, target) => {
@@ -510,6 +554,21 @@
     export const timeRangeFactory = new TimeRangeFactory(columnService);
 
     export const utils = new GanttUtils();
+    export const onSelectTasks = taskContainerId => {
+        console.log('taskContainerId', taskContainerId);
+        const div = document.getElementById(`tasks-container-${taskContainerId}`);
+        const children = div.children;
+        let ids = [];
+        let targets = [];
+        for (let i = 0; i < children.length; i++) {
+            ids.push(children[i].dataset.taskId);
+            targets.push(
+                ganttElement.querySelector(`[data-task-id="${children[i].dataset.taskId}"]`)
+            );
+        }
+
+        selectionManager.selectMultiple(ids, targets);
+    };
     $: {
         utils.from = $_from;
         utils.to = $_to;
@@ -518,6 +577,8 @@
         utils.magnetUnit = magnetUnit;
         utils.magnetDuration = magnetDuration;
         utils.dateAdapter = dateAdapter;
+        utils.onSelectTasks = onSelectTasks;
+        utils.selectionManager = selectionManager;
         //utils.to = columns[columns.length - 1].to;
         //utils.width = columns.length * columns[columns.length - 1].width;
     }
@@ -562,7 +623,7 @@
     export function selectTask(id) {
         const task = $taskStore.entities[id];
         if (task) {
-            selectionManager.selectSingle(id, ganttElement.querySelector(`data-task-id='${id}'`)); // TODO:: fix
+            selectionManager.selectSingle(id, ganttElement.querySelector(`[data-task-id="${id}"]`)); // TODO:: fix
         }
     }
 
@@ -671,6 +732,23 @@
         return null;
     }
 
+    export function rendorTasks() {
+        isReadyToRendorTasks = true;
+    }
+
+    function clearTasks() {
+        if (!visibleTasks || visibleTasks.length === 0) return;
+
+        visibleTasks.forEach(task => {
+            const div = document.getElementById(`tasks-container-${task.model.id}`);
+            if (div) {
+                div.remove();
+            }
+        });
+
+        nextIndex = 0;
+    }
+
     let filteredRows = [];
     $: filteredRows = $allRows.filter(row => !row.hidden);
 
@@ -699,6 +777,7 @@
     $: visibleRows = filteredRows.slice(startIndex, endIndex + 1);
 
     let visibleTasks: SvelteTask[];
+    let displayTasks: [][];
     $: {
         const tasks = [];
         const rendered: { [id: string]: boolean } = {};
@@ -722,7 +801,9 @@
         }
 
         tasks.sort((a, b) => a.model.id - b.model.id);
+        clearTasks();
         visibleTasks = tasks;
+        transformTaks();
     }
 
     $: {
@@ -741,6 +822,11 @@
     }
 
     let nextIndex = 0;
+    let isReadyToRendorTasks = false;
+    $: console.log('displayTasks', displayTasks);
+    $: console.log('visibleTasks', visibleTasks);
+    // let currentTaskId = '';
+    // let maxTaskId = 0;
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -822,35 +908,44 @@
                         <TimeRange {...timeRange} />
                     {/each}
 
-                    {#each visibleTasks as task, index (task.model.id)}
-                        {#if task.model.syncNextIndex > 0}
-                            <div class="tasks-container">
-                                {#each visibleTasks as _task, _index (_task.model.id)}
-                                    {#if _index >= index && _index <= task.model.syncNextIndex + index}
-                                        <Task
-                                            bind:nextIndex
-                                            model={_task.model}
-                                            left={_task.left}
-                                            width={_task.width}
-                                            height={_task.height}
-                                            top={_task.top}
-                                            {..._task}
-                                        />
-                                    {/if}
+                    {#if isReadyToRendorTasks}
+                        {#each displayTasks as tasks, index}
+                            <div
+                                id={`tasks-container-${index}`}
+                                class="tasks-container"
+                                on:click={() => {
+                                    onSelectTasks(index);
+
+                                    // const div = document.getElementById(`tasks-container-${index}`);
+                                    // const children = div.children;
+                                    // let ids = [];
+                                    // let targets = [];
+                                    // for (let i = 0; i < children.length; i++) {
+                                    //     ids.push(children[i].dataset.taskId);
+                                    //     targets.push(
+                                    //         ganttElement.querySelector(
+                                    //             `[data-task-id="${children[i].dataset.taskId}"]`
+                                    //         )
+                                    //     );
+                                    // }
+
+                                    // selectionManager.selectMultiple(ids, targets);
+                                }}
+                            >
+                                {#each tasks as task}
+                                    <Task
+                                        bind:nextIndex
+                                        model={task.model}
+                                        left={task.left}
+                                        width={task.width}
+                                        height={task.height}
+                                        top={task.top}
+                                        {...task}
+                                    />
                                 {/each}
                             </div>
-                        {:else if index > nextIndex}
-                            <Task
-                                bind:nextIndex
-                                model={task.model}
-                                left={task.left}
-                                width={task.width}
-                                height={task.height}
-                                top={task.top}
-                                {...task}
-                            />
-                        {/if}
-                    {/each}
+                        {/each}
+                    {/if}
                 </div>
                 {#each ganttBodyModules as module}
                     <svelte:component
@@ -937,7 +1032,7 @@
         box-sizing: border-box;
     }
 
-    :global(.tasks-container:hover div) {
-        background-color: #f0f0f0;
-    }
+    /* :global(.tasks-container:hover div) {
+        box-shadow: 10px 10px 5px grey;
+    } */
 </style>
