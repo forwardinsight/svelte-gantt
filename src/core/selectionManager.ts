@@ -39,6 +39,7 @@ export class SelectionManager {
 
     selectMultiple(taskIds, nodes) {
         if (!this.currentSelection.has(taskIds[0])) {
+            this.unSelectTasks();
             const newSelections = taskIds.reduce((selections, taskId) => {
                 selections[taskId] = true;
                 return selections;
